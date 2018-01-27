@@ -51,7 +51,7 @@ h_pool =tf.nn.max_pool(h_conv_cutoff, ksize=[1,2,2,1],
                        strides=[1,2,2,1], padding='SAME')
 
 sess = tf.InteractiveSession()
-sess.run(tf.initialize_all_variables())
+sess.run(tf.global_variables_initializer())
 
 filter_vals, conv_vals = sess.run([W_conv, h_conv_cutoff],
                                   feed_dict={x:images[:9]})
