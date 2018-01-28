@@ -1,13 +1,12 @@
-import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
 
 # 난수의 시드 생성
 np.random.seed(20180127)
 
 # MNIST 데이터 세트 다운로드
-mnist = input_data.read_data_sets("/tmp/data/", one_hot=True)
+mnist = input_data.read_data_sets("../tmp/data/", one_hot=True)
 
 # 다층 신경망을 표현하는 클래스 정의
 class DoubleCnnNetwork:
@@ -45,10 +44,13 @@ class DoubleCnnNetwork:
             b2 = tf.Variable(tf.zeros([num_units2]))
             hidden2 = tf.nn.relu(tf.matmul(h_pool2_flat, w2) + b2)
 
+            keep_prob = tf.placeholder(tf.float32)
+            hidden2_drop = tf.nn.dropout(hidden2, keep_prob)
+
         with tf.name_scope('output'):
             w0 = tf.Variable(tf.zeros([num_units2, 10]), name='weights')
             b0 = tf.Variable(tf.zeros([10]), name='biases')
-            p = tf.nn.softmax(tf.matmul(hidden2, w0) + b0, name='softmax')
+            p = tf.nn.softmax(tf.matmul(hidden2_drop, w0) + b0, name='softmax')
 
         with tf.name_scope('optimizer'):
             t = tf.placeholder(tf.float32, [None, 10], name='labels')
@@ -73,6 +75,7 @@ class DoubleCnnNetwork:
         self.train_step = train_step
         self.loss = loss
         self.accuracy = accuracy
+        self.keep_prob = keep_prob
 
     def prepare_session(self):
         sess = tf.InteractiveSession()
@@ -80,7 +83,7 @@ class DoubleCnnNetwork:
         saver = tf.train.Saver()
         #saver.restore(sess, './session/cnn_session-4000')
         summary = tf.summary.merge_all()
-        writer = tf.summary.FileWriter("/tmp/mnist/03_cnn_logs", sess.graph)
+        writer = tf.summary.FileWriter("../tmp/mnist/03_cnn_logs", sess.graph)
 
         self.sess = sess
         self.summary = summary
@@ -96,16 +99,28 @@ for _ in range(20000):
     i += 1
     batch_xs, batch_ts = mnist.train.next_batch(50)        # 미니배치
     #sess.run(train_step, feed_dict={x: batch_xs, t: batch_ts})
-    nn.sess.run(nn.train_step, feed_dict={nn.x: batch_xs, nn.t: batch_ts})
+    nn.sess.run(nn.train_step, feed_dict={nn.x: batch_xs, nn.t: batch_ts, nn.keep_prob:0.5})
     if i % 500 == 0:
         #loss_val, acc_val = sess.run([loss, accuracy], feed_dict={x:mnist.test.images, t: mnist.test.labels})
-        summary, loss_val, acc_val = nn.sess.run([nn.summary, nn.loss, nn.accuracy], feed_dict={nn.x: mnist.test.images, nn.t: mnist.test.labels})
+        loss_vals, acc_vals = [], []
+        for c in range(4):
+            start = int(len(mnist.test.labels) / 4 * c)
+            end = int(len(mnist.test.labels) / 4 * (c+1))
+            loss_val, acc_val = nn.sess.run([nn.loss, nn.accuracy],
+                                                     feed_dict={nn.x: mnist.test.images[start:end],
+                                                                nn.t: mnist.test.labels[start:end],
+                                                                nn.keep_prob:1.0})
+            loss_vals.append(loss_val)
+            acc_vals.append(acc_val)
+        loss_val = np.sum(loss_vals)
+        acc_val = np.mean(acc_vals)
         print ('Step: %d, Loss: %f, Accuracy: %f' % (i, loss_val, acc_val))
 
         nn.saver.save(nn.sess, './session/double_cnn_session', global_step=i)
 
         # For, tensorboard
-        nn.writer.add_summary(summary, i)
+        #summary = nn.sess.run([nn.summary])
+        #nn.writer.add_summary(summary, i)
 
 '''
 # 얻어진 결과를 실제 이미지로 확인
